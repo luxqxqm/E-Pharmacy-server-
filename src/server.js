@@ -2,63 +2,31 @@
 import express from 'express';
 import cors from 'cors';
 import 'dotenv/config';
-import pino from 'pino-http';
+import { connectMongoDB } from './db/connectMongoDB.js';
+import { logger } from './middlewares/logger.js';
+import { notFoundHandler } from './middlewares/notFoundHandler.js';
+import { errorHandler } from './middlewares/errorHandler.js';
+import productsRouter from './routes/productsRoutes.js';
+import { errors } from 'celebrate';
+import storeRouter from './routes/storesRoutes.js';
+import reviewsRouter from './routes/reviewsRoutes.js';
+import userRouter from './routes/usersRoutes.js';
+import cartRouter from './routes/cartRoutes.js';
 const app = express();
 const PORT = process.env.PORT || 3000;
+app.use(logger);
 app.use(express.json());
 app.use(cors());
-app.use(
-  pino({
-    level: 'info',
-    transport: {
-      target: 'pino-pretty',
-      options: {
-        colorize: true,
-        translateTime: 'HH:MM:ss',
-        ignore: 'pid,hostname',
-        messageFormat:
-          '{req.method} {req.url} {res.statusCode} - {responseTime}ms',
-        hideObject: true,
-      },
-    },
-  }),
-);
-// Логування часу
-app.use((req, res, next) => {
-  console.log(`Time: ${new Date().toLocaleString()}`);
-  next();
-});
+app.use('/api/products', productsRouter);
+app.use('/api/stores', storeRouter);
+app.use('/api/customer-reviews', reviewsRouter);
+app.use('/api/user', userRouter);
+app.use('/api/cart', cartRouter);
+app.use(notFoundHandler);
+app.use(errors());
+app.use(errorHandler);
 
-// Кореневий маршрут
-app.get('/', (req, res) => {
-  res.status(200).json({ message: 'Hello, World!' });
-});
-
-// Маршрут для тестування middleware помилки
-app.get('/test-error', (req, res) => {
-  // Штучна помилка для прикладу
-  throw new Error('Something went wrong');
-});
-
-app.post('/users', (req, res) => {
-  console.log(req.body); // тепер тіло доступне як JS-об’єкт
-  res.status(201).json({ message: 'User created' });
-});
-// Middleware 404 (після всіх маршрутів)
-app.use((req, res) => {
-  res.status(404).json({ message: 'Route not found' });
-});
-
-// Middleware для обробки помилок (останнє)
-app.use((err, req, res, next) => {
-  console.error('Error:', err.message);
-  const isProd = process.env.NODE_ENV === 'production';
-  res.status(500).json({
-    message: isProd
-      ? 'Something went wrong. Please try again later.'
-      : err.message,
-  });
-});
+await connectMongoDB();
 
 app.listen(PORT, () => {
   console.log(`Server is running on port ${PORT}`);
